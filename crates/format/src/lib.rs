@@ -25,6 +25,7 @@ pub mod autosave;
 mod convert;
 pub mod manifest;
 mod migrate;
+pub mod read;
 mod store;
 pub mod zip;
 
@@ -36,6 +37,7 @@ use photocraft_raster::Rgba8Image;
 pub use atomic::atomic_write;
 pub use autosave::{Autosaver, RecoveryEntry, discard_recovery, list_recovery, recover};
 pub use manifest::{FORMAT_VERSION, Manifest};
+pub use read::read_file;
 pub use store::{PcraftWriter, SaveStats};
 
 /// File extension of the native format.

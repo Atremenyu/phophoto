@@ -202,10 +202,15 @@ impl egui::DroppedFile for FakeDrop {
 #[test]
 fn dropped_files_open_with_path_and_recent() {
     let (mut app, _) = app_with(None, None);
-    let abs = std::env::temp_dir().join("dropped.psd");
+    let dir = std::env::temp_dir().join(format!("photocraft-drop-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let abs = dir.join("dropped.psd");
+    std::fs::write(&abs, b"x").unwrap();
     let abs_s = abs.to_string_lossy().to_string();
     app.open_dropped(vec![
-        std::sync::Arc::new(FakeDrop(abs, Ok(b"x".to_vec()))),
+        // A desktop drop (absolute path) is read from disk like File › Open (#375), never through
+        // egui's whole-file `std::fs::read`.
+        std::sync::Arc::new(FakeDrop(abs, Err("egui's reader must not be used".into()))),
         // Unreadable and undecodable drops are errors; no path means no recent entry.
         std::sync::Arc::new(FakeDrop("gone.psd".into(), Err("permission denied".into()))),
         std::sync::Arc::new(FakeDrop("rel.psd".into(), Ok(b"x".to_vec()))),
@@ -218,6 +223,7 @@ fn dropped_files_open_with_path_and_recent() {
     assert_eq!(app.ui.recent_files, vec![abs_s]);
     assert!(app.ui.status_error);
     assert_eq!(app.ui.notices.iter().filter(|n| n.error).count(), 2);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

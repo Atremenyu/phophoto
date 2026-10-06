@@ -900,6 +900,18 @@ fn read_dropped(f: &(dyn egui::DroppedFile + Send + Sync)) -> Result<Vec<u8>, St
     f.bytes()
 }
 
+/// A file dropped from the desktop, read like File › Open (bounded reads, no abort when it does
+/// not fit in memory) rather than with egui's `std::fs::read`.
+#[cfg(not(target_arch = "wasm32"))]
+fn read_dropped_path(path: &std::path::Path) -> Result<Vec<u8>, String> {
+    photocraft_format::read_file(path).map_err(|e| e.to_string())
+}
+
+#[cfg(target_arch = "wasm32")]
+fn read_dropped_path(_path: &std::path::Path) -> Result<Vec<u8>, String> {
+    Err("drag-and-drop on the web is handled by the page; use File → Open".into())
+}
+
 /// On the web, dropped-file bytes arrive asynchronously; the web shell handles drops itself.
 #[cfg(target_arch = "wasm32")]
 fn read_dropped(_f: &dyn egui::DroppedFile) -> Result<Vec<u8>, String> {

@@ -96,8 +96,17 @@ pub fn native(automation: Option<photocraft_automation::AuthorizedWorkspace>) ->
         })),
         pick_open: Some(Box::new(|| {
             let path = rfd::FileDialog::new().add_filter("All Formats", OPEN_EXTS).add_filter("PhotoCraft", &["pcraft"]).pick_file()?;
-            let bytes = std::fs::read(&path).ok()?;
-            Some((path.to_string_lossy().to_string(), bytes))
+            match photocraft_format::read_file(&path) {
+                Ok(bytes) => Some((path.to_string_lossy().to_string(), bytes)),
+                Err(e) => {
+                    // Never fail silently: the caller only learns that nothing was picked.
+                    let name = path.file_name().map_or_else(|| path.to_string_lossy(), |n| n.to_string_lossy());
+                    let msg = format!("Couldn't open {name}: {e}");
+                    log::warn!("{msg}");
+                    rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("PhotoCraft").set_description(msg).show();
+                    None
+                }
+            }
         })),
         pick_save: Some(Box::new(|suggested: &str| {
             let p = std::path::Path::new(suggested);
