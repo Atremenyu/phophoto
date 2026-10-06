@@ -1221,6 +1221,9 @@ mod move_auto_select_tests;
 mod marquee_tests;
 
 #[cfg(test)]
+mod polygon_lasso_tests;
+
+#[cfg(test)]
 mod clipboard_tests {
     use super::*;
     use std::sync::{Arc, Mutex};
