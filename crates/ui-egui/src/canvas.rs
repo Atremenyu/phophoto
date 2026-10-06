@@ -864,6 +864,7 @@ pub(crate) fn retain_gpu_documents(app: &mut PhotocraftApp) {
 /// Tabs + canvas for the active document, or the start screen.
 pub fn document_area(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     retain_gpu_documents(app);
+    crate::transform_tool::track_steps(app, ui.ctx());
     let n = app.session.documents().len();
     if app.ui.chrome.shows_home(n, app.session.prefs().general.auto_show_home_screen) {
         start_screen(app, ui);
