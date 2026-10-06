@@ -1544,6 +1544,10 @@ pub fn canvas_view(app: &mut PhotocraftApp, ui: &mut egui::Ui, idx: usize, rect:
                 }
                 // A click with the (temporary) Hand does nothing, never the tool underneath.
                 Tool::Hand => {}
+                // Double-clicking closes the polygonal lasso: the first click placed the last
+                // vertex (or already closed it), so the second never starts a new polygon. egui
+                // reports it as a triple click when a vertex went down shortly before.
+                Tool::PolygonLasso if response.double_clicked() || response.triple_clicked() => commit_polygon(app, mods),
                 _ => {
                     if tool == Tool::Move && app.ui.transform.is_none() {
                         begin_transform_controls_at(app, &ctx, &xf, p);
@@ -2072,15 +2076,7 @@ pub fn tool_event(app: &mut PhotocraftApp, ev: ToolEvent, mods: egui::Modifiers)
                     return;
                 }
                 Tool::PolygonLasso => {
-                    // Click adds a vertex; clicking near the first vertex closes the polygon.
-                    let close = app.ui.polygon.first().is_some_and(|p0| {
-                        app.ui.polygon.len() >= 3 && ((p0[0] - x).powi(2) + (p0[1] - y).powi(2)).sqrt() < 8.0 / app.current_zoom().max(0.01) as f64
-                    });
-                    if close {
-                        commit_polygon(app, mods);
-                    } else {
-                        app.ui.polygon.push([x, y]);
-                    }
+                    polygon_click(app, x, y, mods);
                     return;
                 }
                 Tool::Type if crate::type_tool::pointer_down(app, x, y, mods.shift) => return,
@@ -2254,6 +2250,25 @@ pub fn extra_windows(app: &mut PhotocraftApp, ctx: &egui::Context) {
 /// The cursor badge announces the same mode (`tool_feedback`).
 fn selection_mode(app: &PhotocraftApp, m: egui::Modifiers) -> &'static str {
     crate::tool_feedback::selection_mode(Tool::Lasso, app.ui.selection_mode, m)
+}
+
+/// A polygonal lasso click adds a vertex; clicking near the first vertex closes the polygon. The
+/// first click of a new-selection polygon deselects, as in Photoshop, so the old outline doesn't
+/// linger while the new one is drawn.
+fn polygon_click(app: &mut PhotocraftApp, x: f64, y: f64, mods: egui::Modifiers) {
+    let close = app
+        .ui
+        .polygon
+        .first()
+        .is_some_and(|p0| app.ui.polygon.len() >= 3 && ((p0[0] - x).powi(2) + (p0[1] - y).powi(2)).sqrt() < 8.0 / app.current_zoom().max(0.01) as f64);
+    if close {
+        commit_polygon(app, mods);
+        return;
+    }
+    if app.ui.polygon.is_empty() && selection_mode(app, mods) == "replace" && app.session.is_enabled("select.deselect") {
+        let _ = app.run("select.deselect", json!({}));
+    }
+    app.ui.polygon.push([x, y]);
 }
 
 /// Close the polygonal lasso and make the selection.
