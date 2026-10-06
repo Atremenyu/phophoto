@@ -1,4 +1,6 @@
-//! Polygonal Lasso through the real canvas: a double-click closes the polygon, as in Photoshop.
+//! Polygonal Lasso through the real canvas: a double-click closes the polygon, and the first
+//! click of a new-selection polygon deselects (⇧ or ⌥ keep the selection to add to or subtract
+//! from), as in Photoshop.
 
 use egui::{Modifiers, PointerButton, Pos2, vec2};
 use egui_kittest::Harness;
@@ -115,4 +117,44 @@ fn double_click_on_the_first_vertex_keeps_the_new_selection() {
     double_click(&mut h, 50.0, 50.0);
     assert!(h.state().ui.polygon.is_empty());
     assert!(selection(&h).is_some_and(|r| near(r, 50, 50, 150, 150)), "{:?}", selection(&h));
+}
+
+#[test]
+fn a_new_polygon_deselects_and_modifiers_keep_the_selection() {
+    let mut h = harness();
+    h.state_mut().run("select.rect", json!({"x": 200, "y": 150, "width": 100, "height": 100})).unwrap();
+    h.run_steps(1);
+    click(&mut h, 20.0, 20.0, Modifiers::NONE);
+    assert_eq!(h.state().ui.polygon.len(), 1);
+    assert_eq!(selection(&h), None, "the first click of a new polygon deselects");
+    // Esc cancels the polygon; the old selection stays gone, and undo brings it back.
+    h.key_press(egui::Key::Escape);
+    h.run_steps(2);
+    assert!(h.state().ui.polygon.is_empty());
+    assert_eq!(selection(&h), None);
+    h.state_mut().run("edit.undo", json!({})).unwrap();
+    assert!(selection(&h).is_some_and(|r| near(r, 200, 150, 300, 250)));
+    // ⇧ (add) and ⌥ (subtract) start a polygon that combines with the selection.
+    for m in [Modifiers::SHIFT, Modifiers::ALT] {
+        h.run_steps(30); // Not a double-click with the click before.
+        h.event(egui::Event::ModifiersChanged(m));
+        h.run_steps(1);
+        click(&mut h, 20.0, 20.0, m);
+        h.event(egui::Event::ModifiersChanged(Modifiers::NONE));
+        h.run_steps(1);
+        assert_eq!(h.state().ui.polygon.len(), 1, "{m:?}");
+        assert!(selection(&h).is_some(), "{m:?}: the selection stays");
+        h.key_press(egui::Key::Escape);
+        h.run_steps(2);
+    }
+}
+
+/// A new polygon over no selection records no Deselect step.
+#[test]
+fn a_new_polygon_without_a_selection_adds_no_history() {
+    let mut h = harness();
+    let steps = h.state().session.active().unwrap().history.entries().len();
+    click(&mut h, 20.0, 20.0, Modifiers::NONE);
+    assert_eq!(h.state().ui.polygon.len(), 1);
+    assert_eq!(h.state().session.active().unwrap().history.entries().len(), steps);
 }
